@@ -396,6 +396,13 @@
             <artifactId>kafka-connect-storage-common-avatica-shaded</artifactId>
             <version>${kafka.connect.storage.common.version}</version>
         </dependency>
+        <!-- Explicitly add the public version of jackson-mapper-asl to override missing custom version -->
+        <dependency>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-mapper-asl</artifactId>
+            <version>1.9.13</version>
+            <scope>compile</scope>
+        </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
