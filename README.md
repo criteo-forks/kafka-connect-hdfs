@@ -8,6 +8,7 @@ Documentation for this connector can be found [here](http://docs.confluent.io/cu
 # Criteo fork changes
 
 - Disable all hive related test raising a  `NoClassDefFound Could not initialize class org.apache.hadoop.hive.ql.exec.Utilities`. Related issue (https://github.com/criteo-forks/kafka-connect-hdfs/issues/1). To be fixed if we plan to use hive module (not the case currently).
+- Force jackson-mapper-asl transitive dependency to 1.9.13
 
 # Development
 
