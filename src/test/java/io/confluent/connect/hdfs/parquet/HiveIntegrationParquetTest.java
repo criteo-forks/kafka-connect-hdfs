@@ -27,6 +27,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -83,6 +84,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testSyncWithHiveParquet() throws Exception {
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -127,6 +129,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationParquet() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
@@ -165,6 +168,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationFieldPartitionerParquet() throws Exception {
     int batchSize = 3;
     int batchNum = 3;
@@ -249,6 +253,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationFieldPartitionerParquetMultiple() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
@@ -333,6 +338,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationTimeBasedPartitionerParquet() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());

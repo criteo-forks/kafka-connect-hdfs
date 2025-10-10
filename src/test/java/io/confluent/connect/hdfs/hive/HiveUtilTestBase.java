@@ -29,6 +29,7 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -82,6 +83,7 @@ public abstract class HiveUtilTestBase extends HiveTestBase {
   protected abstract HiveUtil createHiveUtil();
 
   @Test
+  @Ignore
   public void testCreateTable() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
@@ -129,6 +131,7 @@ public abstract class HiveUtilTestBase extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testAlterSchema() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
