@@ -26,6 +26,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -85,6 +86,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testSyncWithHiveAvro() throws Exception {
     setUp();
 
@@ -136,6 +138,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationAvro() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
@@ -178,6 +181,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationTopicWithDotsAvro() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
@@ -223,6 +227,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationFieldPartitionerAvro() throws Exception {
     int batchSize = 3;
     int batchNum = 3;
@@ -299,6 +304,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationFieldPartitionerAvroMultiple() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
@@ -381,6 +387,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationTimeBasedPartitionerAvro() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());

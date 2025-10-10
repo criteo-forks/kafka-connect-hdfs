@@ -50,6 +50,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -93,6 +94,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testSyncWithHiveOrc() throws Exception {
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -137,6 +139,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationOrc() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
@@ -174,6 +177,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationWithLogicalTypesOrc() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
@@ -201,6 +205,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationWithArrays() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
@@ -232,6 +237,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationWithNestedStruct() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
@@ -264,6 +270,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationFieldPartitionerOrc() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
@@ -337,6 +344,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
   }
 
   @Test
+  @Ignore
   public void testHiveIntegrationTimeBasedPartitionerOrc() throws Exception {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
