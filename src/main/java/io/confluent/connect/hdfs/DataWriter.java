@@ -88,7 +88,6 @@ public class DataWriter {
   private HiveMetaStore hiveMetaStore;
   private HiveUtil hive;
   private Queue<Future<Void>> hiveUpdateFutures;
-  private Thread ticketRenewThread;
   private volatile boolean isRunning;
 
   public DataWriter(
@@ -269,16 +268,10 @@ public class DataWriter {
 
       UserGroupInformation.setConfiguration(hadoopConfiguration);
       // replace the _HOST specified in the principal config to the actual host
-      String principal = SecurityUtil.getServerPrincipal(
-          connectorConfig.connectHdfsPrincipal(),
-          hostname
-      );
-      UserGroupInformation.loginUserFromKeytab(principal, connectorConfig.connectHdfsKeytab());
       final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
       log.info("Login as: " + ugi.getUserName());
 
       isRunning = true;
-      ticketRenewThread = new Thread(() -> renewKerberosTicket(ugi));
     } catch (UnknownHostException e) {
       throw new ConnectException(
           String.format(
@@ -293,12 +286,6 @@ public class DataWriter {
           e
       );
     }
-
-    log.info(
-        "Starting the Kerberos ticket renew thread with period {} ms.",
-        connectorConfig.kerberosTicketRenewPeriodMs()
-    );
-    ticketRenewThread.start();
   }
 
   private void initializeHiveServices(Configuration hadoopConfiguration) {
@@ -511,13 +498,6 @@ public class DataWriter {
     }
 
     storage.close();
-
-    if (ticketRenewThread != null) {
-      synchronized (this) {
-        isRunning = false;
-        this.notifyAll();
-      }
-    }
   }
 
   public Partitioner getPartitioner() {
@@ -665,27 +645,5 @@ public class DataWriter {
     map.put(PartitionerConfig.LOCALE_CONFIG, config.getString(PartitionerConfig.LOCALE_CONFIG));
     map.put(PartitionerConfig.TIMEZONE_CONFIG, config.getString(PartitionerConfig.TIMEZONE_CONFIG));
     return map;
-  }
-
-  private void renewKerberosTicket(UserGroupInformation ugi) {
-    synchronized (DataWriter.this) {
-      while (isRunning) {
-        try {
-          DataWriter.this.wait(connectorConfig.kerberosTicketRenewPeriodMs());
-          if (isRunning) {
-            log.debug("Attempting re-login from keytab for user: {}", ugi.getUserName());
-            ugi.reloginFromKeytab();
-          }
-        } catch (IOException e) {
-          // We ignore this exception during relogin as each successful relogin gives
-          // additional 24 hours of authentication in the default config. In normal
-          // situations, the probability of failing relogin 24 times is low and if
-          // that happens, the task will fail eventually.
-          log.error("Error renewing the ticket", e);
-        } catch (InterruptedException e) {
-          // ignored
-        }
-      }
-    }
   }
 }
