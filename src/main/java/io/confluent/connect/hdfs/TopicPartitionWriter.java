@@ -15,6 +15,8 @@
 
 package io.confluent.connect.hdfs;
 
+import com.criteo.connect.hdfs.WatermarkFileWriter;
+import com.criteo.connect.hdfs.WatermarkUtils;
 import io.confluent.connect.hdfs.avro.AvroIOException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -59,6 +61,8 @@ import io.confluent.connect.storage.partitioner.TimestampExtractor;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 import io.confluent.connect.storage.wal.WAL;
 import io.confluent.connect.storage.wal.FilePathOffset;
+
+import static com.criteo.connect.hdfs.WatermarkUtils.isWatermark;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
@@ -116,6 +120,9 @@ public class TopicPartitionWriter {
   private final Queue<Future<Void>> hiveUpdateFutures;
   private final Set<String> hivePartitions;
   private final String hiveTableName;
+  // watermark specific fields
+  private final WatermarkFileWriter watermarkFileWriter;
+  private WatermarkUtils.WatermarkMetadata latestWatermark;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -245,6 +252,8 @@ public class TopicPartitionWriter {
     } else {
       timeZone = null;
     }
+
+    this.watermarkFileWriter = new WatermarkFileWriter(this.storage, this.topicsDir);
 
     // Initialize rotation timers
     updateRotationTimers(null);
@@ -387,8 +396,17 @@ public class TopicPartitionWriter {
                 }
               }
             }
+
             SinkRecord record = buffer.peek();
             currentRecord = record;
+            // Track latest watermark tracked
+            if (record != null && isWatermark(record)) {
+              updateWatermark(record);
+              currentRecord = null;
+              buffer.poll();
+              break;
+            }
+
             Schema valueSchema = record.valueSchema();
             if ((recordCounter <= 0 && currentSchema == null && valueSchema != null)
                 || compatibility.shouldChangeSchema(record, null, currentSchema).isInCompatible()) {
@@ -493,6 +511,19 @@ public class TopicPartitionWriter {
           resetAndSetRecovery();
         }
         return;
+      }
+
+      // record observed watermarks if no records were written
+      if (recordCounter == 0 && latestWatermark != null) {
+        String wmPath = watermarkFileWriter.watermarkFilePath(latestWatermark);
+        boolean updated = watermarkFileWriter.writeIfNewer(latestWatermark);
+        if (updated) {
+          log.info("Wrote watermark file {} with timestamp {} (human {}) for {} (stale topic)",
+                  wmPath, latestWatermark.timestamp, latestWatermark.humanTimestamp(), tp);
+        } else {
+          log.debug("Skipped watermark file {} on stale topic; timestamp {} not newer",
+                  wmPath, latestWatermark.timestamp);
+        }
       }
 
       resume();
@@ -773,6 +804,27 @@ public class TopicPartitionWriter {
     }
   }
 
+  private void updateWatermark(SinkRecord record) {
+    if (record == null) {
+      return;
+    }
+    Object value = record.value();
+    WatermarkUtils.WatermarkMetadata meta = null;
+    if (value instanceof byte[]) {
+      meta = WatermarkUtils.decodeWatermark((byte[]) value);
+    } else if (value instanceof String) {
+      meta = WatermarkUtils.decodeWatermark((String) value);
+    }
+    if (meta == null || meta.timestamp == null) {
+      log.info("Watermark metadata is null for record: {}", record.value().toString());
+      return;
+    }
+    if (latestWatermark == null || meta.timestamp > latestWatermark.timestamp) {
+      latestWatermark = meta;
+      log.debug("Updated latest watermark for {} to {}", tp, meta.timestamp);
+    }
+  }
+
   private void writeRecord(SinkRecord record) {
     if (offset == -1) {
       offset = record.kafkaOffset();
@@ -894,6 +946,19 @@ public class TopicPartitionWriter {
         .mapToLong(this::commitFile)
         .max()
         .orElse(-1);
+
+    if (latestWatermark != null) {
+      String wmPath = watermarkFileWriter.watermarkFilePath(latestWatermark);
+      boolean updated = watermarkFileWriter.writeIfNewer(latestWatermark);
+      if (updated) {
+        log.info("Wrote watermark file {} with timestamp {} (human {}) for {}",
+                wmPath, latestWatermark.timestamp, latestWatermark.humanTimestamp(), tp);
+      } else {
+        log.debug("Skipped writing watermark file {}; timestamp {} not newer than existing",
+                wmPath, latestWatermark.timestamp);
+      }
+    }
+
     if (latestCommitted > -1) {
       offset = latestCommitted + 1;
     }

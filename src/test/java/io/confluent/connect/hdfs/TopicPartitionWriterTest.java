@@ -15,6 +15,9 @@
 
 package io.confluent.connect.hdfs;
 
+import com.criteo.connect.hdfs.WatermarkFileWriter;
+import com.criteo.connect.hdfs.WatermarkUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -62,8 +65,7 @@ import io.confluent.connect.storage.wal.WAL;
 
 import static io.confluent.connect.storage.StorageSinkConnectorConfig.FLUSH_SIZE_CONFIG;
 import static org.apache.kafka.common.utils.Time.SYSTEM;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   private RecordWriterProvider writerProvider = null;
@@ -781,6 +783,114 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixLater, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
     }
     verify(expectedFiles, 3, records, schema);
+  }
+
+  @Test
+  public void testWatermarkWrittenOnCommit() throws Exception {
+    localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "2");
+    setUp();
+    Partitioner partitioner = new FieldPartitioner();
+    partitioner.configure(parsedConfig);
+    TopicPartitionWriter writer = new TopicPartitionWriter(
+            TOPIC_PARTITION,
+            storage,
+            writerProvider,
+            newWriterProvider,
+            partitioner,
+            connectorConfig,
+            context,
+            avroData,
+            time
+    );
+    writer.buffer(simpleDataRecord(0));
+    writer.buffer(watermarkRecord(1, 1000));
+    writer.buffer(simpleDataRecord(2));
+    writer.recover();
+    writer.write();
+    String wmPath = storage.url() + "/" + topicsDir.get(TOPIC) + "/" + TOPIC + "/watermarks/" + TOPIC + "-" + PARTITION + "-prod-eu-stream.json";
+    assertTrue("Watermark file should exist after commit with data", storage.exists(wmPath));
+    byte[] bytes = storage.readBytes(wmPath);
+    assertNotNull(bytes);
+    WatermarkFileWriter.WritableWatermark wm = new ObjectMapper().readValue(bytes, WatermarkFileWriter.WritableWatermark.class);
+    assertEquals(1000L, wm.timestamp);
+    assertEquals("Offset after first commit should be endOffset+1", 3, writer.offset());
+
+    // Second commit: add a newer watermark plus two more data records to trigger another rotation
+    writer.buffer(watermarkRecord(3, 1500)); // newer watermark
+    writer.buffer(simpleDataRecord(4));
+    writer.buffer(simpleDataRecord(5));
+    writer.write();
+    assertEquals("Offset after second commit should advance", 6, writer.offset());
+    byte[] bytes2 = storage.readBytes(wmPath);
+    WatermarkFileWriter.WritableWatermark wm2 = new ObjectMapper().readValue(bytes2, WatermarkFileWriter.WritableWatermark.class);
+    assertEquals("Watermark timestamp should update to newer value", 1500L, wm2.timestamp);
+  }
+
+  @Test
+  public void testWatermarkWrittenOnStalePartition() throws Exception {
+    localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "2");
+    setUp();
+    Partitioner partitioner = new FieldPartitioner();
+    partitioner.configure(parsedConfig);
+    TopicPartitionWriter writer = new TopicPartitionWriter(
+            TOPIC_PARTITION,
+            storage,
+            writerProvider,
+            newWriterProvider,
+            partitioner,
+            connectorConfig,
+            context,
+            avroData,
+            time
+    );
+    writer.buffer(watermarkRecord(0, 2000));
+    writer.buffer(watermarkRecord(1, 3000));
+    writer.recover();
+    writer.write();
+    String wmPath = storage.url() + "/" + topicsDir.get(TOPIC) + "/" + TOPIC + "/watermarks/" +
+            TOPIC + "-" + PARTITION + "-prod-eu-stream.json";
+    assertTrue("Watermark file should exist for stale (watermark-only) partition", storage.exists(wmPath));
+    byte[] bytes = storage.readBytes(wmPath);
+    WatermarkFileWriter.WritableWatermark wm =
+            new ObjectMapper().readValue(bytes, WatermarkFileWriter.WritableWatermark.class);
+    assertEquals(3000L, wm.timestamp);
+
+    // Second write cycle: lower watermark (ignored) then higher watermark (updated)
+    writer.buffer(watermarkRecord(2, 2500)); // older than 3000, should not update
+    writer.buffer(watermarkRecord(3, 4000)); // newer than 3000, should update
+    writer.write();
+    byte[] bytes2 = storage.readBytes(wmPath);
+    WatermarkFileWriter.WritableWatermark wm2 =
+            new ObjectMapper().readValue(bytes2, WatermarkFileWriter.WritableWatermark.class);
+    assertEquals("Watermark timestamp should advance to 4000", 4000L, wm2.timestamp);
+  }
+
+  private SinkRecord simpleDataRecord(long offset) {
+    Schema schema = createSchema();
+    return new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, "k", schema, createRecord(schema), offset);
+  }
+
+  private SinkRecord watermarkRecord(long offset, long tsEpochSeconds) {
+    String json = "{\"type\":\"com.criteo.glup.watermark\"," +
+            "\"hostname\":\"h\"," +
+            "\"kafka_topic\":\"" + TOPIC + "\"," +
+            "\"partition\":" + PARTITION + "," +
+            "\"partition_count\":1," +
+            "\"process_uuid\":\"u\"," +
+            "\"region\":\"eu\"," +
+            "\"timestamp\":" + tsEpochSeconds +
+            ",\"cluster\":\"stream\"," +
+            "\"environment\":\"prod\"," +
+            "\"consensus_type\":\"all_sources\"}";
+    return new SinkRecord(
+            TOPIC,
+            PARTITION,
+            Schema.STRING_SCHEMA,
+            WatermarkUtils.WATERMARK_KEY,
+            Schema.BYTES_SCHEMA,
+            json.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            offset
+    );
   }
 
   private String getTimebasedEncodedPartition(long timestamp) {
