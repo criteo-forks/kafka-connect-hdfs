@@ -21,9 +21,13 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.Options;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
@@ -33,6 +37,7 @@ import java.util.List;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.wal.FSWAL;
 import io.confluent.connect.hdfs.wal.WAL;
+import org.apache.hadoop.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -189,6 +194,52 @@ public class HdfsStorage
   @Override
   public String url() {
     return url;
+  }
+
+  /**
+   * Read entire file contents into a byte array.
+   * Intended for small control files (e.g. watermarks).
+   * @param filename absolute path in HDFS
+   * @return byte[] of file contents, or null if file does not exist
+   */
+  public byte[] readBytes(String filename) {
+    try {
+      Path p = new Path(filename);
+      if (!fs.exists(p)) {
+        return null;
+      }
+      try (FSDataInputStream in = fs.open(p);
+           ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+        IOUtils.copyBytes(in, baos, conf.getHadoopConfiguration(), false);
+        return baos.toByteArray();
+      }
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
+  }
+
+  /**
+   * Read entire file contents as UTF-8 string. Returns null if file does not exist.
+   */
+  public String readString(String filename) {
+    byte[] data = readBytes(filename);
+    return data == null ? null : new String(data, java.nio.charset.StandardCharsets.UTF_8);
+  }
+
+  public void renameFileWithOverride(String sourcePath, String targetPath) {
+    if (sourcePath.equals(targetPath)) {
+      return;
+    }
+    try {
+      FileContext fc = FileContext.getFileContext(conf.getHadoopConfiguration());
+      final Path srcPath = new Path(sourcePath);
+      final Path destPath = new Path(targetPath);
+      if (fc.util().exists(srcPath)) {
+        fc.rename(srcPath, destPath, Options.Rename.OVERWRITE);
+      }
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   private void renameFile(String sourcePath, String targetPath) {
