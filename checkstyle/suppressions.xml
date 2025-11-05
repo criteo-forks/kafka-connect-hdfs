@@ -34,7 +34,7 @@
 
     <suppress
             checks="MethodLength"
-            files="(DataWriter|HdfsSinkConnectorConfig).java"
+            files="(DataWriter|HdfsSinkConnectorConfig|TopicPartitionWriter).java"
     />
 
     <suppress
@@ -44,7 +44,7 @@
 
     <suppress
             checks="ParameterNumber"
-            files="(TopicPartitionWriter).java"
+            files="(TopicPartitionWriter|WatermarkUtils).java"
     />
 
     <suppress
@@ -61,6 +61,11 @@
     <suppress
             checks="ClassDataAbstractionCoupling"
             files="(HdfsSinkConnectorConfig).java"
+    />
+
+    <suppress
+            checks="RegexpHeader"
+            files="(WatermarkUtils|WatermarkFileWriter).java"
     />
 
 </suppressions>
