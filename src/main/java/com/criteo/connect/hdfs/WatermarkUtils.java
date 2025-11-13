@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
+import java.nio.charset.StandardCharsets; // added for explicit charset usage
 
 public class WatermarkUtils {
   private static final Logger log = LoggerFactory.getLogger(WatermarkUtils.class);
@@ -113,8 +114,6 @@ public class WatermarkUtils {
     }
     try {
       JsonNode root = MAPPER.readTree(json);
-
-      // Try wrapped format first
       JsonNode arr = root.get("__metadata");
       if (arr != null && arr.isArray() && !arr.isEmpty()) {
         WatermarkMetadata wm = buildFromNode(arr.get(0), WatermarkFormat.REINJECTED);
@@ -122,9 +121,8 @@ public class WatermarkUtils {
           return wm;
         }
       }
-      // Fallback to flat format if "type" at root
-      WatermarkMetadata flat = buildFromNode(root, WatermarkFormat.INJECTED);
-      return flat;
+      // Directly return the flat format build to avoid redundant local variable warning.
+      return buildFromNode(root, WatermarkFormat.INJECTED);
     } catch (IOException e) {
       log.debug("Failed to parse watermark json", e);
       return null;
@@ -136,7 +134,8 @@ public class WatermarkUtils {
     if (jsonBytes == null || jsonBytes.length == 0) {
       return null;
     }
-    return decodeWatermark(new String(jsonBytes));
+    // Use explicit UTF-8 charset instead of platform default
+    return decodeWatermark(new String(jsonBytes, StandardCharsets.UTF_8));
   }
 
   /** Quick predicate to check if a JSON string looks like a watermark message. */
@@ -152,7 +151,8 @@ public class WatermarkUtils {
       if (key instanceof String) {
         return WATERMARK_KEY.equals(key);
       } else if (key instanceof byte[]) {
-        return WATERMARK_KEY.equals(new String((byte[]) key));
+        // Explicit UTF-8 decoding to avoid reliance on platform default encoding
+        return WATERMARK_KEY.equals(new String((byte[]) key, StandardCharsets.UTF_8));
       }
       return false;
     } catch (Exception e) {
